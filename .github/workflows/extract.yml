@@ -1,0 +1,39 @@
+name: Rebuild data.json
+
+# Re-run the extractor whenever the source PDFs (or the script) change,
+# and commit the regenerated data/data.json.
+on:
+  push:
+    paths:
+      - "files/*.pdf"
+      - "scripts/extract.py"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install -r scripts/requirements.txt
+
+      - run: python scripts/extract.py
+
+      - name: Commit updated data
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if ! git diff --quiet data/data.json; then
+            git add data/data.json
+            git commit -m "chore: rebuild data.json from PDFs"
+            git push
+          else
+            echo "data.json unchanged."
+          fi

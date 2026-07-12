@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="fr" dir="ltr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Moyennes minimales BAC — Algérie</title>
+  <meta name="description" content="Recherche des moyennes minimales d'accès aux filières universitaires (BAC Algérie 2023–2025).">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">🎓</span>
+      <span class="brand-txt" data-i18n="title">Moyennes minimales BAC</span>
+    </div>
+    <div class="lang-toggle" role="group" aria-label="Language">
+      <button data-lang="fr" class="active">FR</button>
+      <button data-lang="ar">العربية</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <h1 data-i18n="hero_title">Trouvez la moyenne minimale de votre filière</h1>
+      <p class="sub" data-i18n="hero_sub">BAC 2023 · 2024 · 2025 — tapez une spécialité en français.</p>
+      <div class="search-wrap">
+        <input id="search" type="search" autocomplete="off" spellcheck="false"
+               data-i18n-ph="search_ph" placeholder="Ex : informatique, droit, médecine…">
+        <ul id="suggest" class="suggest" hidden></ul>
+      </div>
+      <div class="stream-pick">
+        <span class="lbl" data-i18n="your_stream">Votre filière au BAC :</span>
+        <select id="streamPick"><option value="" data-i18n="stream_any">— Toutes —</option></select>
+      </div>
+    </section>
+
+    <section id="results" class="results" aria-live="polite">
+      <!-- states injected here -->
+    </section>
+  </main>
+
+  <footer>
+    <p data-i18n="footer">Données : moyennes minimales d'affectation (MESRS). Application non officielle.</p>
+    <p class="sources">
+      <span data-i18n="sources">Fichiers sources :</span>
+      <a href="files/moy_min_bac2023.pdf" download>BAC 2023</a>
+      <a href="files/moy_min_bac2024.pdf" download>BAC 2024</a>
+      <a href="files/moy_min_bac2025.pdf" download>BAC 2025</a>
+      <a href="files/circulaire.pdf" download data-i18n="circulaire">Circulaire</a>
+    </p>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/fuse.js@7.0.0/dist/fuse.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
