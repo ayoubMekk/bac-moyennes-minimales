@@ -23,7 +23,9 @@ const I18N = {
     filter_etb: "Filtrer par établissement…",
     national: "National",
     prio_generic: "Min 1 / 2 / 3 selon la filière (non détaillé)",
+    prio_row_generic: "Priorité selon la filière",
     prio_title: "Que signifient Min 1 · 2 · 3 ?",
+    calc_base: "Base de classement",
     na: "n.d.",
   },
   ar: {
@@ -47,7 +49,9 @@ const I18N = {
     filter_etb: "التصفية حسب المؤسسة…",
     national: "وطني",
     prio_generic: "المعدل 1 / 2 / 3 حسب الشعبة (غير مفصّل)",
+    prio_row_generic: "حسب الشعبة",
     prio_title: "ماذا تعني المعدلات 1 · 2 · 3 ؟",
+    calc_base: "أساس الترتيب",
     na: "غير متوفر",
   },
 };
@@ -210,21 +214,30 @@ function renderDetail(spec) {
   CURRENT = spec;
   const years = DATA.meta.years;
 
-  // priority legend
+  // priority legend: one row per Min column that carries data
   const slots = ["min1", "min2", "min3"];
-  const hasPrio = slots.some(k => spec.priorities[k]);
+  const mapped = slots.filter(k => spec.priorities[k]).length;
+  const nCols = Math.max(spec.active_mins || 0, mapped);
+  const sep = LANG === "ar" ? "، " : ", ";
   let legend;
-  if (!hasPrio) {
+  if (nCols === 0) {
     legend = `<div class="row"><span class="streams none">${tr("prio_generic")}</span></div>`;
   } else {
-    legend = slots.map((k, i) => {
-      const st = spec.priorities[k];
-      if (!st) return "";
-      const names = st.map(streamName).join(LANG === "ar" ? "، " : ", ");
-      return `<div class="row"><span class="tag m${i + 1}">Min ${i + 1}</span>` +
-        `<span class="streams">${esc(names)}</span></div>`;
-    }).join("");
+    legend = "";
+    for (let i = 0; i < nCols; i++) {
+      const st = spec.priorities[slots[i]];
+      const names = st
+        ? `<span class="streams">${esc(st.map(streamName).join(sep))}</span>`
+        : `<span class="streams none">${tr("prio_row_generic")}</span>`;
+      legend += `<div class="row"><span class="tag m${i + 1}">Min ${i + 1}</span>${names}</div>`;
+    }
   }
+
+  // base de classement (weighted vs general average)
+  const calc = spec.calc && DATA.meta.calc[spec.calc];
+  const calcLine = calc
+    ? `<div class="calc"><span class="calc-lbl">${tr("calc_base")} :</span> ${esc(LANG === "ar" ? calc.ar : calc.fr)}</div>`
+    : "";
 
   // wilaya options
   const wilayas = [...new Set(spec.establishments.map(e => e.wilaya).filter(Boolean))].sort();
@@ -240,6 +253,7 @@ function renderDetail(spec) {
         domLabel(spec), scopeLabel(spec), spec.code_fil,
       ].filter(Boolean).map(esc).join(" · ")}</div>
       <div class="legend" title="${tr("prio_title")}">${legend}</div>
+      ${calcLine}
     </div>
     <div class="filters">
       <input id="fEtb" type="search" placeholder="${tr("filter_etb")}">

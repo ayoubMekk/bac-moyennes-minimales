@@ -54,13 +54,15 @@ DOMAINES = {
 }
 
 # domaine letter -> ordered list of priority slots (min1, min2, min3);
-# each slot is a list of stream keys sharing that priority.
+# each slot is a list of stream keys sharing that priority (Min column).
+# For science domaines the grande-école variants split a slot into separate
+# Min columns — see SCIENCE_SPLIT, applied when the data has more columns.
 PRIORITY_MAP = {
     "A": [["math", "sciexp", "techmath"]],
-    "B": [["sciexp", "math"], ["techmath"]],
+    "B": [["sciexp"], ["math"], ["techmath"]],
     "C": [["math"], ["sciexp", "techmath"]],
-    "D": [["sciexp", "math"], ["techmath"]],
-    "E": [["sciexp", "math"], ["techmath"]],
+    "D": [["sciexp"], ["math"], ["techmath"]],
+    "E": [["sciexp"], ["math"], ["techmath"]],
     "F": [["gestion", "lettres"], ["math", "sciexp", "techmath"], ["langues"]],
     "G": [["lettres", "langues", "gestion", "arts"], ["sciexp", "math"], ["techmath"]],
     "I": [["lettres", "langues", "arts"], ["sciexp"]],
@@ -68,8 +70,21 @@ PRIORITY_MAP = {
     "K": [["arts"], ["sciexp", "math", "techmath", "lettres", "langues", "gestion"]],
     "L": [["lettres", "langues", "arts"], ["sciexp", "gestion"]],
     "M": [["lettres", "langues", "arts"], ["sciexp", "gestion"]],
-    "N": [["math", "techmath"]],   # Sci.Exp inclusion uncertain in circulaire
-    "P": [["sciexp", "math"], ["techmath"]],
+    "N": [["math", "techmath"]],
+    "P": [["sciexp"], ["math"], ["techmath"]],
+}
+# When a science filière (typically a grande école) fills more Min columns than
+# its regular slot count, each stream becomes its own priority in this order.
+SCIENCE_SPLIT = {
+    "A": ["math", "sciexp", "techmath"],
+    "C": ["math", "sciexp", "techmath"],
+    "N": ["math", "techmath", "sciexp"],
+}
+# Base de classement: weighted average (coefficients) vs general BAC average.
+WEIGHTED = {"A", "C", "N"}   # per circulaire p.4 "صيغة احتساب" column
+CALC = {
+    "weighted": {"fr": "Moyenne pondérée du BAC", "ar": "المعدل الموزون للبكالوريا"},
+    "general":  {"fr": "Moyenne générale du BAC", "ar": "المعدل العام للبكالوريا"},
 }
 # H (languages) split by H## sub-code.
 H_LANG_A = [["langues"], ["lettres"], ["sciexp", "gestion", "arts"]]        # FR/EN/ES/DE
@@ -81,12 +96,20 @@ H_SUBMAP = {
     "05": H_LANG_B, "09": H_LANG_B, "08": H_LANG_B, "03": H_LANG_B,  # ZH TR RU ...
 }
 
-def priority_slots(code_fil):
-    """Return list of slots (each a list of stream keys) for a code_fil, or None."""
+def priority_slots(code_fil, active=0):
+    """Slots (each a list of stream keys) for a code_fil, or None.
+
+    `active` = how many Min columns actually carry data. Science grande-écoles
+    split a shared slot into per-stream columns when the data needs more.
+    """
     letter = code_fil[0]
     if letter == "H":
         return H_SUBMAP.get(code_fil[1:3], H_LANG_A)
-    return PRIORITY_MAP.get(letter)
+    base = PRIORITY_MAP.get(letter)
+    if base and letter in SCIENCE_SPLIT and active > len(base):
+        order = SCIENCE_SPLIT[letter]
+        return [[s] for s in order[:max(active, len(base))]]
+    return base
 
 # --- wilaya derivation (best-effort from establishment name) ---------------
 
@@ -298,11 +321,6 @@ def build():
                 name_votes[fn] += len(specs[c]["estabs"])
         filiere_fr = name_votes.most_common(1)[0][0] if name_votes else rep
         dom = DOMAINES.get(letter)
-        slots = priority_slots(rep)
-        if slots is None:
-            warnings["unmapped_domaine"] += 1
-        priorities = {f"min{i+1}": (slots[i] if slots and i < len(slots) else None)
-                      for i in range(3)}
 
         # merge establishments across the grouped codes (fill nulls, no dup rows)
         merged = collections.OrderedDict()
@@ -319,14 +337,14 @@ def build():
                             if cur[k] is None and yv[k] is not None:
                                 cur[k] = yv[k]
 
-        estabs, max_populated = [], 0
+        estabs, active_mins = [], 0
         for code_etb, m in sorted(merged.items()):
             etb_fr = m["names"].most_common(1)[0][0] if m["names"] else code_etb
             years = {y: m["years"].get(y, {"min1": None, "min2": None, "min3": None})
                      for y in YEARS}
             for yv in years.values():
-                max_populated = max(max_populated,
-                                    sum(1 for k in ("min1", "min2", "min3") if yv[k] is not None))
+                active_mins = max(active_mins,
+                                  sum(1 for k in ("min1", "min2", "min3") if yv[k] is not None))
             estabs.append({
                 "code_etb": code_etb,
                 "etablissement_fr": etb_fr,
@@ -334,12 +352,19 @@ def build():
                 "years": years,
             })
 
-        if slots is not None and max_populated > len(slots):
+        # priorities: pick slots knowing how many Min columns carry data
+        slots = priority_slots(rep, active_mins)
+        if slots is None:
+            warnings["unmapped_domaine"] += 1
+        priorities = {f"min{i+1}": (slots[i] if slots and i < len(slots) else None)
+                      for i in range(3)}
+        if slots is not None and active_mins > len(slots):
             warnings["min_cols_exceed_priorities"] += 1
 
         scope_votes = collections.Counter(code2scope[c] for c in codes if code2scope.get(c))
         scope = scope_votes.most_common(1)[0][0] if scope_votes else None
         filiere_ar = fr2ar.get(fold(filiere_fr))
+        calc = ("weighted" if letter in WEIGHTED else "general") if dom else None
 
         specialities.append({
             "code_fil": rep,
@@ -351,7 +376,9 @@ def build():
             "domaine_ar": dom["ar"] if dom else None,
             "nature": seg,
             "scope": scope,
+            "calc": calc,
             "priorities": priorities,
+            "active_mins": active_mins,
             "search": fold(filiere_fr),
             "search_ar": filiere_ar or "",
             "establishments": estabs,
@@ -365,6 +392,7 @@ def build():
             "generated": datetime.date.today().isoformat(),
             "streams": STREAMS,
             "scopes": SCOPES,
+            "calc": CALC,
             "row_counts": counts,
             "speciality_count": len(specialities),
             "specialities_with_arabic": ar_named,
@@ -408,6 +436,11 @@ def main():
     assert by_code["A00LAL01"]["priorities"]["min1"] == ["math", "sciexp", "techmath"]
     assert by_code["A00LAL01"]["priorities"]["min2"] is None
     assert by_code["G02LAL01"]["priorities"]["min3"] == ["techmath"]
+    # grande-école informatique: 3 distinct priority tiers, weighted average
+    cinf = by_code["C00CAN02"]
+    assert cinf["priorities"] == {"min1": ["math"], "min2": ["sciexp"], "min3": ["techmath"]}, cinf["priorities"]
+    assert cinf["calc"] == "weighted"
+    assert by_code["G02LAL01"]["calc"] == "general"
     # merge worked: the 3 academic-Droit variants collapsed into one speciality
     droit_lal = by_code["G02LAL01"]
     assert set(droit_lal["codes"]) >= {"G02LAL01", "G02LAL02", "G02LAL03"}, droit_lal["codes"]

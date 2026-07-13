@@ -85,7 +85,9 @@ select{
 }
 .tag.m1{background:#1f6feb}.tag.m2{background:#8256d0}.tag.m3{background:#c65d21}
 .legend .streams{color:var(--ink)}
-.legend .streams .none{color:var(--muted);font-style:italic}
+.legend .streams.none,.legend .streams .none{color:var(--muted);font-style:italic}
+.detail-head .calc{margin-top:12px;font-size:.85rem;color:var(--muted)}
+.detail-head .calc .calc-lbl{font-weight:600;color:var(--ink)}
 
 /* filters */
 .filters{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
