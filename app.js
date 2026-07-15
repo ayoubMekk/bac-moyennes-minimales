@@ -135,14 +135,31 @@ const tr = k => I18N[LANG][k];
 /* accent/tashkeel-insensitive fold — mirrors extract.py fold() */
 const fold = s => (s || "").normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase().trim();
 
+/* Network first, cache only as an offline fallback.
+   Not force-cache: that serves the cached copy even when stale, so a returning
+   visitor could keep seeing outdated minimums long after a new year is
+   published. Plain fetch revalidates against the ETag (cheap 304 when
+   unchanged); if the network is actually unavailable we fall back to whatever
+   is in the HTTP cache, so the app still works offline once loaded. */
+async function loadData() {
+  const url = "data/data.json";
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(res.status);
+    return await res.json();
+  } catch (e) {
+    const res = await fetch(url, { cache: "force-cache" });  // offline
+    if (!res.ok) throw e;
+    return await res.json();
+  }
+}
+
 /* ---- boot ---- */
 async function init() {
   bindChrome();
   renderState("loading");
   try {
-    const res = await fetch("data/data.json", { cache: "force-cache" });
-    if (!res.ok) throw new Error(res.status);
-    DATA = await res.json();
+    DATA = await loadData();
   } catch (e) {
     renderState("error");
     return;
