@@ -8,3 +8,6 @@ Thumbs.db
 
 # Local tooling
 .claude/
+
+# local-only dev helper
+scripts/crosscheck.py
