@@ -102,6 +102,49 @@ main{max-width:1000px;margin:0 auto;padding:0 16px 40px}
   font-size:.75rem;color:var(--muted)}
 .linkish{background:transparent;border:0;color:var(--brand);font-weight:600;font-size:.8rem;padding:0}
 .linkish:hover{text-decoration:underline}
+.oacts{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.obtn.small{grid-column:auto;padding:7px 12px;font-size:.8rem}
+.printhead{display:none}
+
+/* ---- print / save-as-PDF: keep only the estimate ----
+   The caveat is printed on purpose: a printed list gets shared and read far
+   from this page, so it has to carry its own warning. */
+@media print{
+  @page{margin:14mm}
+  .topbar,.tabs,#panelSearch,.hero,.oform,footer,.oacts,.linkish,.ofoot{display:none !important}
+  body{background:#fff;color:#000;font-size:11pt}
+  main{max-width:none;padding:0}
+  .printhead{
+    display:flex;justify-content:space-between;align-items:baseline;
+    border-bottom:2px solid #000;padding-bottom:6px;margin-bottom:10px;font-size:12pt;
+  }
+  .orecap{border:0;box-shadow:none;padding:0;margin-bottom:8px;font-size:11pt}
+  .warn{
+    border:1px solid #000;border-inline-start-width:4px;background:#fff !important;
+    color:#000 !important;font-size:9.5pt;margin:0 0 10px;
+  }
+  .warn strong{color:#000 !important}
+  .count{margin-bottom:8px;font-size:10pt}
+  .etb-list{display:block}
+  .ocard{
+    break-inside:avoid;page-break-inside:avoid;box-shadow:none;border:1px solid #999;
+    border-inline-start:4px solid #999;border-radius:0;margin-bottom:7px;padding:8px 10px;
+  }
+  /* bands must survive greyscale printing: keep the text label + a border weight */
+  .ocard.band-ok{border-inline-start-color:#000}
+  .ocard.band-edge{border-inline-start-color:#777;border-inline-start-style:dashed}
+  .ocard.band-no{border-inline-start-color:#ccc;border-inline-start-style:dotted}
+  .badge{border:1px solid #000;background:#fff !important;color:#000 !important;padding:1px 7px}
+  /* flatten each result to one compact line: cards would run to ~40 pages */
+  .ocard-top{margin-bottom:1px}
+  .ocard .etb-name{font-size:10.5pt}
+  .ocard .s-dom{font-size:8pt;display:inline}
+  .onums{display:flex;gap:14px;margin:2px 0 0}
+  .onums div{background:#fff;border:0;padding:0;text-align:start;display:flex;gap:4px;align-items:baseline}
+  .onums .ok-l{display:inline;font-size:8pt}
+  .onums b{display:inline;font-size:10pt}
+  .ocalc{display:none}
+}
 .hero{padding:32px 4px 8px;text-align:center}
 .hero h1{font-size:1.6rem;margin:0 0 6px;letter-spacing:-.02em}
 .hero .sub{color:var(--muted);margin:0 0 20px;font-size:.95rem}

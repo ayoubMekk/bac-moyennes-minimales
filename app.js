@@ -47,6 +47,13 @@ const I18N = {
     o_see: "Voir le détail",
     o_calc_used: "Calcul utilisé",
     o_again: "Modifier mes informations",
+    o_print: "🖨 Imprimer / PDF",
+    print_head: "Spécialités possibles — tawjihdz.com",
+    o_show: "Afficher :",
+    o_show_all: "Toutes",
+    o_show_reach: "Probables et limites",
+    o_show_ok: "Probables seulement",
+    o_shown: "affichée(s) sur",
     o_reminder: "Rappel : estimation indicative basée sur les années passées, pas une garantie d'affectation.",
     empty: "Commencez à taper le nom d'une spécialité (en français ou en arabe) ou d'un domaine.",
     loading: "Chargement des données…",
@@ -108,6 +115,13 @@ const I18N = {
     o_see: "عرض التفاصيل",
     o_calc_used: "طريقة الحساب المعتمدة",
     o_again: "تعديل معلوماتي",
+    o_print: "🖨 طباعة / PDF",
+    print_head: "التخصصات الممكنة — tawjihdz.com",
+    o_show: "عرض:",
+    o_show_all: "الكل",
+    o_show_reach: "المرجّحة والحدّية",
+    o_show_ok: "المرجّحة فقط",
+    o_shown: "معروضة من أصل",
     o_reminder: "تذكير: تقدير إرشادي مبني على السنوات الماضية، وليس ضمانًا للتوجيه.",
     empty: "ابدأ بكتابة اسم تخصص (بالعربية أو الفرنسية) أو ميدان.",
     loading: "جارٍ تحميل البيانات…",
@@ -586,8 +600,15 @@ function runOrientation() {
     return;
   }
   rows.sort((a, b) => b.margin - a.margin);
+  LAST_ROWS = rows;
   renderOrientResults(rows);
 }
+
+/* Band filter. Printing follows whatever is on screen, so this doubles as the
+   print scope — the full list runs to ~30 pages, and the useful printout is
+   usually just what you can plausibly get. */
+let LAST_ROWS = [];
+const BAND_SETS = { all: ["ok", "edge", "no"], reach: ["ok", "edge"], ok: ["ok"] };
 
 function ruleLabel(rule) {
   const parts = Object.entries(rule.terms).map(([k, w]) => {
@@ -598,16 +619,27 @@ function ruleLabel(rule) {
   return rule.divisor === 1 ? parts[0] : `( ${parts.join(" + ")} ) ÷ ${rule.divisor}`;
 }
 
-function renderOrientResults(rows) {
+function renderOrientResults(allRows) {
   const stream = streamName(OSTATE.stream);
+  const today = new Date().toLocaleDateString(LANG === "ar" ? "ar-DZ" : "fr-DZ");
+  const bands = BAND_SETS[OSTATE.band || "all"];
+  const rows = allRows.filter(r => bands.includes(r.band));
+  const opt = (v, k) => `<option value="${v}"${(OSTATE.band || "all") === v ? " selected" : ""}>${tr(k)}</option>`;
   const head = `
+    <div class="printhead"><strong>${tr("print_head")}</strong><span>${esc(today)}</span></div>
     <div class="orecap">
-      <strong>${tr("o_recap")}:</strong> ${esc(stream)} · ${esc(OSTATE.wilaya)} ·
-      ${tr("o_mg")} ${OSTATE.mg.toFixed(2)}
-      <button class="back" id="oAgain">${tr("o_again")}</button>
+      <span><strong>${tr("o_recap")}:</strong> ${esc(stream)} · ${esc(OSTATE.wilaya)} ·
+      ${tr("o_mg")} ${OSTATE.mg.toFixed(2)}</span>
+      <span class="oacts">
+        <label class="ok-l" for="oBand">${tr("o_show")}</label>
+        <select id="oBand">${opt("all", "o_show_all")}${opt("reach", "o_show_reach")}${opt("ok", "o_show_ok")}</select>
+        <button class="back" id="oAgain">${tr("o_again")}</button>
+        <button class="obtn small" id="oPrint">${tr("o_print")}</button>
+      </span>
     </div>
     <p class="warn small" role="note">${tr("o_reminder")}</p>
-    <div class="count">${rows.length} ${tr("o_results")}</div>`;
+    <div class="count">${rows.length} ${rows.length === allRows.length
+      ? tr("o_results") : `${tr("o_shown")} ${allRows.length}`}</div>`;
 
   const cards = rows.map(r => `
     <div class="ocard band-${r.band}">
@@ -632,6 +664,11 @@ function renderOrientResults(rows) {
   $("#orientResults").innerHTML = head + `<div class="etb-list">${cards}</div>`;
   $("#oAgain").addEventListener("click", () => {
     $("#orientResults").innerHTML = ""; $("#oStream").focus();
+  });
+  $("#oPrint").addEventListener("click", () => window.print());
+  $("#oBand").addEventListener("change", e => {
+    OSTATE.band = e.target.value;
+    renderOrientResults(LAST_ROWS);
   });
   document.querySelectorAll("#orientResults .linkish").forEach(b =>
     b.addEventListener("click", () => {
