@@ -9,6 +9,10 @@ const I18N = {
     search_ph: "Ex : informatique, droit, médecine…",
     your_stream: "Votre filière au BAC :",
     stream_any: "— Toutes —",
+    your_wilaya: "Votre wilaya du BAC :",
+    wilaya_any: "— Toutes —",
+    pour_bacheliers: "Bacheliers de",
+    open_all: "Toutes wilayas",
     footer: "Données : moyennes minimales d'affectation (MESRS). Application non officielle.",
     sources: "Fichiers sources :",
     circulaire: "Circulaire",
@@ -35,6 +39,10 @@ const I18N = {
     search_ph: "اكتب اسم التخصص (بالعربية أو الفرنسية) أو الميدان…",
     your_stream: "شعبتك في البكالوريا:",
     stream_any: "— الكل —",
+    your_wilaya: "ولاية البكالوريا:",
+    wilaya_any: "— الكل —",
+    pour_bacheliers: "لناجحي ولاية",
+    open_all: "كل الولايات",
     footer: "البيانات: المعدلات الدنيا للتوجيه (وزارة التعليم العالي). تطبيق غير رسمي.",
     sources: "الملفات المصدر:",
     circulaire: "المنشور",
@@ -57,7 +65,7 @@ const I18N = {
 };
 
 /* ---- state ---- */
-let DATA = null, FUSE = null, LANG = "fr", STREAM = "";
+let DATA = null, FUSE = null, LANG = "fr", STREAM = "", BACWIL = "";
 let CURRENT = null;              // selected speciality
 const $ = s => document.querySelector(s);
 const tr = k => I18N[LANG][k];
@@ -81,6 +89,7 @@ async function init() {
   DATA.specialities.sort((a, b) => b.establishments.length - a.establishments.length);
   buildSearch();
   buildStreamPicker();
+  buildWilayaPicker();
   applyLang(LANG);
   renderState("empty");
 }
@@ -129,6 +138,10 @@ function bindChrome() {
     STREAM = e.target.value;
     if (CURRENT) renderDetail(CURRENT);
   });
+  $("#wilayaPick").addEventListener("change", e => {
+    BACWIL = e.target.value;
+    if (CURRENT) renderDetail(CURRENT);
+  });
 }
 
 function applyLang(lang) {
@@ -141,8 +154,19 @@ function applyLang(lang) {
   document.querySelectorAll("[data-i18n]").forEach(el => el.textContent = tr(el.dataset.i18n));
   document.querySelectorAll("[data-i18n-ph]").forEach(el => el.placeholder = tr(el.dataset.i18nPh));
   buildStreamPicker();
+  buildWilayaPicker();
   if (CURRENT) renderDetail(CURRENT);
   else if (DATA) { const r = $("#results"); if (r.querySelector(".state")) renderState(currentState); }
+}
+
+/* origin wilaya of the bachelier — many formations publish a different
+   minimum per origin wilaya, so this picks the row that applies to you. */
+function buildWilayaPicker() {
+  const sel = $("#wilayaPick");
+  const list = DATA ? (DATA.meta.origin_wilayas || []) : [];
+  sel.innerHTML = `<option value="">${tr("wilaya_any")}</option>` +
+    list.map(w => `<option value="${esc(w)}">${esc(w)}</option>`).join("");
+  sel.value = BACWIL;
 }
 
 function buildStreamPicker() {
@@ -297,6 +321,9 @@ function renderEtbList() {
   const wil = $("#fWil").value;
 
   let list = spec.establishments.filter(e => {
+    // origin-wilaya quota rows: keep the one for your BAC wilaya, plus rows
+    // that are open to everyone (no origin restriction).
+    if (BACWIL && e.pour_bacheliers && e.pour_bacheliers !== BACWIL) return false;
     if (wil && e.wilaya !== wil) return false;
     if (qEtb && !fold(e.etablissement_fr).includes(qEtb)) return false;
     return true;
@@ -307,11 +334,15 @@ function renderEtbList() {
   $("#etbList").innerHTML = list.map(e => {
     const cells = years.map(y => yearCell(e.years[y], pkey, y)).join("");
     const trend = trendArrow(e, years, pkey);
+    const origin = e.pour_bacheliers
+      ? `<span class="etb-origin">${tr("pour_bacheliers")} ${esc(e.pour_bacheliers)}</span>`
+      : `<span class="etb-origin open">${tr("open_all")}</span>`;
     return `<div class="etb">
       <div class="etb-top">
         <span class="etb-name">${esc(e.etablissement_fr)}${trend}</span>
         <span class="etb-wil">${e.wilaya ? esc(e.wilaya) : tr("national")}</span>
       </div>
+      <div class="etb-sub">${origin}</div>
       <div class="years">${cells}</div>
     </div>`;
   }).join("");

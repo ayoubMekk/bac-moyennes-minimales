@@ -20,6 +20,8 @@ import pdfplumber
 ROOT = Path(__file__).resolve().parent.parent
 FILES = ROOT / "files"
 OUT = ROOT / "data" / "data.json"
+AR_OVERRIDE = ROOT / "data" / "filiere_ar.json"   # optional curated FR -> AR names
+AR_TODO = ROOT / "data" / "filiere_ar.todo.json"  # generated: names still missing AR
 YEARS = ["2023", "2024", "2025"]
 
 # --- reference data (from circulaire.pdf, page 4) --------------------------
@@ -51,6 +53,9 @@ DOMAINES = {
     "M": {"fr": "Langue & Culture Amazighes",    "ar": "لغة وثقافة أمازيغية"},
     "N": {"fr": "Architecture & Urbanisme",      "ar": "هندسة معمارية وعمران"},
     "P": {"fr": "Sciences de la Santé",          "ar": "علوم الصحة"},
+    # Paramedical (INFSPM) — outside the circulaire's main domaine table.
+    "W": {"fr": "Paramédical (Santé publique)",  "ar": "شبه طبي (الصحة العمومية)"},
+    "X": {"fr": "Paramédical (Santé publique)",  "ar": "شبه طبي (الصحة العمومية)"},
 }
 
 # domaine letter -> ordered list of priority slots (min1, min2, min3);
@@ -134,7 +139,17 @@ CITY_ALIASES = {
     "KHEMIS MILIANA": "AIN DEFLA", "BOU SAADA": "MSILA", "BARIKA": "BATNA",
     "AFLOU": "LAGHOUAT", "MAGHNIA": "TLEMCEN", "EL KHARROUBA": "BOUMERDES",
     "EMIR": "CONSTANTINE", "AKID": "ORAN",
+    # spelling variants used in the "pour bacheliers ..." suffixes
+    "SIDIBEL ABBES": "SIDI BEL ABBES", "B B ARRERIDJ": "BORDJ BOU ARRERIDJ",
+    "ELTARF": "EL TARF", "KHENCHLA": "KHENCHELA",
+    "EL MENIAA": "EL MENIA", "EL MGHAIER": "EL MGHAIR",
 }
+
+def wnorm(s):
+    """Fold + upper + punctuation->space, so 'AIN- DEFLA' matches 'AIN DEFLA'."""
+    s = fold(s).upper().replace("'", " ")
+    s = re.sub(r"[-.,/]", " ", s)
+    return re.sub(r"\s+", " ", s).strip()
 
 def _pretty(w):
     return w.title().replace("M Sila", "M'Sila").replace("Msila", "M'Sila")
@@ -154,6 +169,22 @@ def derive_wilaya(name_norm):
 
 def norm_ws(s):
     return re.sub(r"\s+", " ", (s or "").replace("\n", " ")).strip()
+
+# "ASSISTANTS ... -- pour bacheliers MOSTAGANEM" is NOT a cosmetic suffix: the
+# same establishment publishes a *separate* minimum per origin wilaya of the
+# bachelier (a quota track). Over half the rows carry it, so the origin wilaya
+# is part of the row identity — collapsing it silently loses data.
+_LOCAL_RE = re.compile(r"\s*--\s*pour\s+bachelier\w*\s*", re.I)
+
+def clean_filiere(name):
+    """Return (speciality_name, origin_wilaya_or_None) for a raw Filiere cell."""
+    name = (name or "").strip()
+    m = _LOCAL_RE.search(name)
+    if not m:
+        return name, None
+    origin_raw = name[m.end():].strip()
+    origin = derive_wilaya(wnorm(origin_raw)) or (origin_raw or None)
+    return name[:m.start()].strip() or name, origin
 
 def parse_min(v):
     v = (v or "").strip()
@@ -273,13 +304,15 @@ def build():
         n = 0
         for code_etb, etb_fr, code_fil, fil_fr, mins in parse_year(path):
             n += 1
+            fil_fr, origin = clean_filiere(fil_fr)
             spec = specs.setdefault(code_fil, {
                 "names": collections.Counter(), "estabs": {}})
             if fil_fr:
                 spec["names"][fil_fr] += 1
-            est = spec["estabs"].setdefault(code_etb, {
-                "code_etb": code_etb, "names": collections.Counter(),
-                "years": {}})
+            # identity includes the origin wilaya: one row per (etb, origin)
+            est = spec["estabs"].setdefault((code_etb, origin), {
+                "code_etb": code_etb, "pour_bacheliers": origin,
+                "names": collections.Counter(), "years": {}})
             if etb_fr:
                 est["names"][etb_fr] += 1
             est["years"][year] = {"min1": mins[0], "min2": mins[1], "min3": mins[2]}
@@ -309,6 +342,12 @@ def build():
             if code2ar.get(c):
                 fr2ar[fold(fn)][code2ar[c]] += 1
     fr2ar = {k: v.most_common(1)[0][0] for k, v in fr2ar.items()}
+    # Hand/tool-curated names win over the best-effort circulaire scrape and
+    # survive re-extraction. See data/filiere_ar.json (optional).
+    if AR_OVERRIDE.exists():
+        override = json.loads(AR_OVERRIDE.read_text(encoding="utf-8"))
+        fr2ar.update({k: v for k, v in override.items() if v and v.strip()})
+        print(f"  Arabic overrides applied: {len(override)}")
 
     specialities = []
     for (fkey, letter, seg), codes in groups.items():
@@ -325,8 +364,10 @@ def build():
         # merge establishments across the grouped codes (fill nulls, no dup rows)
         merged = collections.OrderedDict()
         for c in codes:
-            for code_etb, est in specs[c]["estabs"].items():
-                m = merged.setdefault(code_etb, {"names": collections.Counter(), "years": {}})
+            for ekey, est in specs[c]["estabs"].items():
+                m = merged.setdefault(ekey, {"names": collections.Counter(),
+                                             "years": {},
+                                             "pour_bacheliers": est["pour_bacheliers"]})
                 m["names"].update(est["names"])
                 for y, yv in est["years"].items():
                     cur = m["years"].get(y)
@@ -338,7 +379,8 @@ def build():
                                 cur[k] = yv[k]
 
         estabs, active_mins = [], 0
-        for code_etb, m in sorted(merged.items()):
+        for (code_etb, origin), m in sorted(
+                merged.items(), key=lambda kv: (kv[0][0], kv[0][1] or "")):
             etb_fr = m["names"].most_common(1)[0][0] if m["names"] else code_etb
             years = {y: m["years"].get(y, {"min1": None, "min2": None, "min3": None})
                      for y in YEARS}
@@ -348,7 +390,8 @@ def build():
             estabs.append({
                 "code_etb": code_etb,
                 "etablissement_fr": etb_fr,
-                "wilaya": derive_wilaya(fold(etb_fr).upper()),
+                "pour_bacheliers": origin,
+                "wilaya": derive_wilaya(wnorm(etb_fr)),
                 "years": years,
             })
 
@@ -386,12 +429,15 @@ def build():
 
     specialities.sort(key=lambda s: -len(s["establishments"]))
     ar_named = sum(1 for s in specialities if s["filiere_ar"])
+    origins = sorted({e["pour_bacheliers"] for s in specialities
+                      for e in s["establishments"] if e["pour_bacheliers"]})
     data = {
         "meta": {
             "years": YEARS,
             "generated": datetime.date.today().isoformat(),
             "streams": STREAMS,
             "scopes": SCOPES,
+            "origin_wilayas": origins,
             "calc": CALC,
             "row_counts": counts,
             "speciality_count": len(specialities),
@@ -427,6 +473,15 @@ def main():
                    encoding="utf-8")
     print(f"\nWrote {OUT} ({OUT.stat().st_size//1024} KiB)")
 
+    # Emit the still-missing Arabic names as a ready-to-fill map.
+    todo = {}
+    for s in data["specialities"]:
+        if not s["filiere_ar"]:
+            todo.setdefault(s["filiere_fr"], "")
+    AR_TODO.write_text(json.dumps(todo, ensure_ascii=False, indent=2),
+                       encoding="utf-8")
+    print(f"Wrote {AR_TODO} ({len(todo)} names still missing Arabic)")
+
     # ponytail self-check: known anchor values must survive the pipeline
     by_code = {c: s for s in data["specialities"] for c in s["codes"]}
     med = by_code["P01MAL01"]
@@ -446,6 +501,16 @@ def main():
     assert set(droit_lal["codes"]) >= {"G02LAL01", "G02LAL02", "G02LAL03"}, droit_lal["codes"]
     assert droit_lal["filiere_ar"] == "حقوق", droit_lal["filiere_ar"]
     assert all(c > 3000 for c in data["meta"]["row_counts"].values())
+    # per-origin quota tracks must survive: INFSPM MOSTAGANEM publishes a
+    # different minimum for each origin wilaya (regression guard, see README).
+    amed = by_code["X13SANTE"]
+    r14 = {e["pour_bacheliers"]: e for e in amed["establishments"]
+           if e["code_etb"] == "R14"}
+    assert set(r14) >= {"Mostaganem", "Chlef", "Relizane"}, sorted(r14)
+    assert r14["Mostaganem"]["years"]["2025"]["min1"] == 15.11, r14["Mostaganem"]["years"]["2025"]
+    assert r14["Mostaganem"]["years"]["2025"]["min2"] == 16.02
+    assert r14["Relizane"]["years"]["2025"]["min1"] == 15.83
+    assert amed["filiere_fr"] == "ASSISTANTS MEDICAUX DE SANTE PUBLIQUE"
     print("Self-check OK.")
 
 if __name__ == "__main__":

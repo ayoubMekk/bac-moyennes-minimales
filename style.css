@@ -105,6 +105,10 @@ select{
 .etb-top{display:flex;justify-content:space-between;gap:10px;align-items:baseline;margin-bottom:10px}
 .etb-name{font-weight:600}
 .etb-wil{font-size:.8rem;color:var(--muted);background:var(--bg);padding:2px 9px;border-radius:999px;white-space:nowrap}
+.etb-sub{margin:-4px 0 8px}
+.etb-origin{font-size:.75rem;font-weight:600;color:var(--brand-d);background:#eaf1fe;
+  padding:2px 9px;border-radius:999px;display:inline-block}
+.etb-origin.open{color:var(--muted);background:var(--bg);font-weight:500}
 .years{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .yr{background:var(--bg);border-radius:10px;padding:8px 10px;text-align:center}
 .yr .y{font-size:.72rem;color:var(--muted);font-weight:600;letter-spacing:.03em}
