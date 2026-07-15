@@ -240,7 +240,21 @@ _AR_STOP = ("تسجيل", "الشهادة", "طبيعة", "تكوينات", "ا�
             "الميدان", "البكالوريا", "التعليم")
 
 def _rev(s):
-    return unicodedata.normalize("NFKC", s or "")[::-1]
+    # Arabic comes out of this PDF in visual order; reverse to get logical order.
+    # Reverse first, then NFKC, so any presentation-form glyph is still a single
+    # char while being reversed.
+    return unicodedata.normalize("NFKC", (s or "")[::-1])
+
+# The PDF writes each lam-alef ligature as two chars in visual order, so
+# reversing swaps them (للإعلام -> لالعالم) and the hamza is lost. A ligature
+# "لا" and the article "ال" are identical in the source, so this cannot be
+# repaired by reversing rules — the scraped name is simply unusable.
+# Detect the damage and treat such names as missing, so data/filiere_ar.json
+# (curated) supplies them instead.
+_AR_DAMAGED = ("اال", "اإل", "األ", "اآل", "لال")
+
+def looks_damaged(ar):
+    return bool(ar) and any(p in ar for p in _AR_DAMAGED)
 
 def _is_arabic(s):
     return bool(s) and any("؀" <= ch <= "ۿ" for ch in s)
@@ -285,7 +299,7 @@ def parse_circulaire_index(path=CIRC):
                         cur_name = min(names, key=len)
                     code = r[code_col].strip() if code_col < len(r) and r[code_col] else None
                     if code and CODE_RE.match(code):
-                        if cur_name:
+                        if cur_name and not looks_damaged(cur_name):
                             code2ar[code] = cur_name
                         if cur_scope:
                             code2scope[code] = cur_scope
@@ -346,8 +360,13 @@ def build():
     # survive re-extraction. See data/filiere_ar.json (optional).
     if AR_OVERRIDE.exists():
         override = json.loads(AR_OVERRIDE.read_text(encoding="utf-8"))
-        fr2ar.update({k: v for k, v in override.items() if v and v.strip()})
-        print(f"  Arabic overrides applied: {len(override)}")
+        # keys are raw French names; fr2ar is keyed by fold() — fold to match
+        applied = {fold(k): v.strip() for k, v in override.items() if v and v.strip()}
+        unknown = sorted(k for k in override if fold(k) not in
+                         {fold(fname(specs[c[0]]) or c[0]) for c in groups.values()})
+        fr2ar.update(applied)
+        print(f"  Arabic overrides applied: {len(applied)}"
+              + (f" ({len(unknown)} unused keys match no filière)" if unknown else ""))
 
     specialities = []
     for (fkey, letter, seg), codes in groups.items():
