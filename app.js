@@ -17,6 +17,37 @@ const I18N = {
     sources: "Fichiers sources :",
     circulaire: "Circulaire",
     contact: "Une erreur ou une suggestion ? Contactez-moi :",
+    tab_search: "Rechercher",
+    tab_orient: "M'orienter",
+    orient_title: "Estimez vos chances",
+    orient_sub: "Renseignez votre BAC pour voir les spécialités accessibles.",
+    warn_title: "Estimation approximative.",
+    warn_body: "Les moyennes minimales ne sont pas des seuils : elles résultent de la demande et des places disponibles de chaque année, et changent donc chaque année. Ce sont des repères des années passées, pas une garantie.",
+    o_stream: "Votre filière au BAC",
+    o_wilaya: "Votre wilaya du BAC",
+    o_mg: "Moyenne générale du BAC",
+    o_hint: "Les notes servent à calculer la moyenne pondérée, utilisée par certains domaines.",
+    o_go: "Voir les spécialités",
+    o_pick: "— Choisir —",
+    o_empty: "Renseignez votre filière, votre wilaya et votre moyenne.",
+    o_none: "Aucune spécialité ne correspond à votre filière du BAC.",
+    o_missing: "Complétez les notes manquantes pour ces domaines.",
+    o_results: "spécialité(s) trouvée(s)",
+    o_recap: "Votre profil",
+    o_yourmoy: "Votre moyenne pour cette spécialité",
+    o_needed: "Minimale la plus basse (2025)",
+    o_margin: "Écart",
+    o_band_ok: "Probable",
+    o_band_edge: "Limite",
+    o_band_no: "Peu probable",
+    o_band_ok_h: "Votre moyenne dépasse nettement la minimale de 2025.",
+    o_band_edge_h: "Votre moyenne est très proche de la minimale de 2025 : cela peut basculer d'une année à l'autre.",
+    o_band_no_h: "Votre moyenne est en dessous de la minimale de 2025.",
+    o_places: "établissement(s) accessible(s)",
+    o_see: "Voir le détail",
+    o_calc_used: "Calcul utilisé",
+    o_again: "Modifier mes informations",
+    o_reminder: "Rappel : estimation indicative basée sur les années passées, pas une garantie d'affectation.",
     empty: "Commencez à taper le nom d'une spécialité (en français ou en arabe) ou d'un domaine.",
     loading: "Chargement des données…",
     noresults: "Aucune spécialité trouvée.",
@@ -47,6 +78,37 @@ const I18N = {
     sources: "الملفات المصدر:",
     circulaire: "المنشور",
     contact: "خطأ أو اقتراح؟ تواصل معي:",
+    tab_search: "بحث",
+    tab_orient: "توجيهي",
+    orient_title: "قدّر فرصك",
+    orient_sub: "أدخل معطيات بكالوريتك لعرض التخصصات الممكنة.",
+    warn_title: "تقدير تقريبي.",
+    warn_body: "المعدلات الدنيا ليست عتبات محددة مسبقًا: فهي نتيجة الطلب والمقاعد المتاحة في كل سنة، وتتغير من سنة إلى أخرى. هي مؤشرات من السنوات الماضية وليست ضمانًا.",
+    o_stream: "شعبتك في البكالوريا",
+    o_wilaya: "ولاية البكالوريا",
+    o_mg: "المعدل العام للبكالوريا",
+    o_hint: "تُستعمل العلامات لحساب المعدل الموزون المعتمد في بعض الميادين.",
+    o_go: "اعرض التخصصات",
+    o_pick: "— اختر —",
+    o_empty: "أدخل شعبتك وولايتك ومعدلك.",
+    o_none: "لا يوجد تخصص يقبل شعبتك في البكالوريا.",
+    o_missing: "أكمل العلامات الناقصة لهذه الميادين.",
+    o_results: "تخصص",
+    o_recap: "ملفك",
+    o_yourmoy: "معدلك لهذا التخصص",
+    o_needed: "أدنى معدل (2025)",
+    o_margin: "الفارق",
+    o_band_ok: "مرجّح",
+    o_band_edge: "على الحدود",
+    o_band_no: "غير مرجّح",
+    o_band_ok_h: "معدلك يفوق بوضوح المعدل الأدنى لسنة 2025.",
+    o_band_edge_h: "معدلك قريب جدًا من المعدل الأدنى لسنة 2025، وقد يتغير من سنة إلى أخرى.",
+    o_band_no_h: "معدلك أقل من المعدل الأدنى لسنة 2025.",
+    o_places: "مؤسسة متاحة",
+    o_see: "عرض التفاصيل",
+    o_calc_used: "طريقة الحساب المعتمدة",
+    o_again: "تعديل معلوماتي",
+    o_reminder: "تذكير: تقدير إرشادي مبني على السنوات الماضية، وليس ضمانًا للتوجيه.",
     empty: "ابدأ بكتابة اسم تخصص (بالعربية أو الفرنسية) أو ميدان.",
     loading: "جارٍ تحميل البيانات…",
     noresults: "لا يوجد تخصص مطابق.",
@@ -90,6 +152,7 @@ async function init() {
   buildSearch();
   buildStreamPicker();
   buildWilayaPicker();
+  buildOrientForm();
   applyLang(LANG);
   renderState("empty");
 }
@@ -127,6 +190,13 @@ function search(q) {
 function bindChrome() {
   document.querySelectorAll(".lang-toggle button").forEach(b =>
     b.addEventListener("click", () => applyLang(b.dataset.lang)));
+  document.querySelectorAll(".tabs button").forEach(b =>
+    b.addEventListener("click", () => showTab(b.dataset.tab)));
+  $("#oStream").addEventListener("change", renderSubjectInputs);
+  $("#orientForm").addEventListener("submit", e => {
+    e.preventDefault();
+    runOrientation();
+  });
 
   const input = $("#search");
   input.addEventListener("input", onSearchInput);
@@ -155,6 +225,10 @@ function applyLang(lang) {
   document.querySelectorAll("[data-i18n-ph]").forEach(el => el.placeholder = tr(el.dataset.i18nPh));
   buildStreamPicker();
   buildWilayaPicker();
+  if (DATA) {
+    buildOrientForm();
+    if ($("#orientResults").innerHTML.trim()) runOrientation();  // re-render in new lang
+  }
   if (CURRENT) renderDetail(CURRENT);
   else if (DATA) { const r = $("#results"); if (r.querySelector(".state")) renderState(currentState); }
 }
@@ -361,6 +435,205 @@ function yearCell(yv, pkey, yearLabel) {
   const body = lines || `<div class="mline"><span class="na">${tr("na")}</span></div>`;
   return `<div class="yr"><div class="y">${yearLabel}</div>` +
     `<div class="mins">${body}</div></div>`;
+}
+
+/* ============================================================
+   Orientation tab — estimate which specialities are reachable.
+   All numbers here are indicative: the published minima are the
+   OUTCOME of a given year's demand and capacity, not a threshold.
+   ============================================================ */
+
+const OSTATE = { stream: "", wilaya: "", mg: null, marks: {} };
+const BAND_EDGE = 0.5;   // within .5 pt of the 2025 minimum = too close to call
+
+/* which calc rule applies to this speciality for a given branch */
+function calcRule(spec, branch) {
+  const rules = spec.calc_key && DATA.meta.calc_rules[spec.calc_key];
+  if (!rules) return null;
+  return rules.find(r => r.branches.includes(branch)) || null;
+}
+
+/* Subjects the user must supply. Only look at specialities this branch can
+   actually be admitted to — a calc rule may list every stream, but a Lettres
+   candidate is never admitted to Sciences & Technologies, so never ask them
+   for a Physique mark. */
+function neededSubjects(branch) {
+  const need = new Set();
+  for (const s of DATA.specialities) {
+    if (!branchKey(s, branch)) continue;
+    const r = calcRule(s, branch);
+    if (!r) continue;
+    for (const k of Object.keys(r.terms)) if (k !== "mg") need.add(k);
+  }
+  return [...need];
+}
+
+/* Σ(weight × value) / divisor -> null if a required mark is missing */
+function moyenneFor(spec, branch, mg, marks) {
+  const r = calcRule(spec, branch);
+  if (!r) return null;
+  let sum = 0;
+  for (const [k, w] of Object.entries(r.terms)) {
+    const v = k === "mg" ? mg : marks[k];
+    if (v === null || v === undefined || v === "") return null;
+    sum += w * Number(v);
+  }
+  return { value: sum / r.divisor, rule: r };
+}
+
+/* the min column matching the user's branch */
+function branchKey(spec, branch) {
+  for (const k of ["min1", "min2", "min3"]) {
+    const st = spec.priorities[k];
+    if (st && st.includes(branch)) return k;
+  }
+  return null;
+}
+
+function buildOrientForm() {
+  const st = $("#oStream"), wl = $("#oWilaya");
+  st.innerHTML = `<option value="">${tr("o_pick")}</option>` +
+    Object.entries(DATA.meta.streams).map(([k, v]) =>
+      `<option value="${k}">${esc(LANG === "ar" ? v.ar : v.fr)}</option>`).join("");
+  wl.innerHTML = `<option value="">${tr("o_pick")}</option>` +
+    DATA.meta.origin_wilayas.map(w => `<option value="${esc(w)}">${esc(w)}</option>`).join("");
+  st.value = OSTATE.stream; wl.value = OSTATE.wilaya;
+  if (OSTATE.mg !== null) $("#oMg").value = OSTATE.mg;
+  renderSubjectInputs();
+}
+
+/* only ask for marks the user's branch can actually need */
+function renderSubjectInputs() {
+  const box = $("#oSubjects");
+  const branch = $("#oStream").value;
+  if (!branch) { box.innerHTML = ""; return; }
+  const subs = neededSubjects(branch);
+  box.innerHTML = subs.map(k => {
+    const s = DATA.meta.subjects[k];
+    return `<div class="ofield">
+      <label for="om_${k}">${esc(LANG === "ar" ? s.ar : s.fr)}</label>
+      <input id="om_${k}" data-sub="${k}" type="number" inputmode="decimal"
+             step="0.01" min="0" max="20" placeholder="—"
+             value="${OSTATE.marks[k] ?? ""}">
+    </div>`;
+  }).join("");
+}
+
+function readOrientForm() {
+  OSTATE.stream = $("#oStream").value;
+  OSTATE.wilaya = $("#oWilaya").value;
+  const mg = parseFloat($("#oMg").value);
+  OSTATE.mg = Number.isFinite(mg) ? mg : null;
+  OSTATE.marks = {};
+  document.querySelectorAll("#oSubjects input[data-sub]").forEach(i => {
+    const v = parseFloat(i.value);
+    if (Number.isFinite(v)) OSTATE.marks[i.dataset.sub] = v;
+  });
+}
+
+function runOrientation() {
+  readOrientForm();
+  const box = $("#orientResults");
+  const { stream, wilaya, mg, marks } = OSTATE;
+  if (!stream || !wilaya || mg === null) {
+    box.innerHTML = `<div class="state"><span class="emoji">📝</span>${tr("o_empty")}</div>`;
+    return;
+  }
+
+  const rows = [];
+  for (const spec of DATA.specialities) {
+    const bkey = branchKey(spec, stream);
+    if (!bkey) continue;                       // branch not admitted here
+    const m = moyenneFor(spec, stream, mg, marks);
+    if (!m) continue;                          // needs a mark not supplied
+
+    // establishments open to this candidate's origin wilaya
+    const opts = spec.establishments.filter(e =>
+      !e.pour_bacheliers || e.pour_bacheliers === wilaya);
+    const mins = opts.map(e => e.years["2025"]?.[bkey])
+                     .filter(v => v !== null && v !== undefined);
+    if (!mins.length) continue;                // no 2025 reference for this branch
+    const lowest = Math.min(...mins);
+    const margin = m.value - lowest;
+    const band = margin >= BAND_EDGE ? "ok" : margin > -BAND_EDGE ? "edge" : "no";
+    const reachable = opts.filter(e => {
+      const v = e.years["2025"]?.[bkey];
+      return v !== null && v !== undefined && m.value >= v - BAND_EDGE;
+    }).length;
+    rows.push({ spec, moy: m.value, rule: m.rule, lowest, margin, band, reachable,
+                total: opts.length, bkey });
+  }
+
+  if (!rows.length) {
+    box.innerHTML = `<div class="state"><span class="emoji">🤷</span>${tr("o_none")}</div>`;
+    return;
+  }
+  rows.sort((a, b) => b.margin - a.margin);
+  renderOrientResults(rows);
+}
+
+function ruleLabel(rule) {
+  const parts = Object.entries(rule.terms).map(([k, w]) => {
+    const name = k === "mg" ? tr("o_mg")
+      : (LANG === "ar" ? DATA.meta.subjects[k].ar : DATA.meta.subjects[k].fr);
+    return w === 1 ? name : `${name} × ${w}`;
+  });
+  return rule.divisor === 1 ? parts[0] : `( ${parts.join(" + ")} ) ÷ ${rule.divisor}`;
+}
+
+function renderOrientResults(rows) {
+  const stream = streamName(OSTATE.stream);
+  const head = `
+    <div class="orecap">
+      <strong>${tr("o_recap")}:</strong> ${esc(stream)} · ${esc(OSTATE.wilaya)} ·
+      ${tr("o_mg")} ${OSTATE.mg.toFixed(2)}
+      <button class="back" id="oAgain">${tr("o_again")}</button>
+    </div>
+    <p class="warn small" role="note">${tr("o_reminder")}</p>
+    <div class="count">${rows.length} ${tr("o_results")}</div>`;
+
+  const cards = rows.map(r => `
+    <div class="ocard band-${r.band}">
+      <div class="ocard-top">
+        <span class="etb-name">${esc(filLabel(r.spec))}</span>
+        <span class="badge b-${r.band}" title="${esc(tr("o_band_" + r.band + "_h"))}">${tr("o_band_" + r.band)}</span>
+      </div>
+      <div class="s-dom">${esc(domLabel(r.spec))}</div>
+      <div class="onums">
+        <div><span class="ok-l">${tr("o_yourmoy")}</span><b>${r.moy.toFixed(2)}</b></div>
+        <div><span class="ok-l">${tr("o_needed")}</span><b>${r.lowest.toFixed(2)}</b></div>
+        <div><span class="ok-l">${tr("o_margin")}</span>
+             <b class="${r.margin >= 0 ? "pos" : "neg"}">${r.margin >= 0 ? "+" : ""}${r.margin.toFixed(2)}</b></div>
+      </div>
+      <div class="ofoot">
+        <span>${r.reachable} / ${r.total} ${tr("o_places")}</span>
+        <button class="linkish" data-code="${esc(r.spec.code_fil)}">${tr("o_see")}</button>
+      </div>
+      <div class="ocalc"><span class="ok-l">${tr("o_calc_used")}:</span> ${esc(ruleLabel(r.rule))}</div>
+    </div>`).join("");
+
+  $("#orientResults").innerHTML = head + `<div class="etb-list">${cards}</div>`;
+  $("#oAgain").addEventListener("click", () => {
+    $("#orientResults").innerHTML = ""; $("#oStream").focus();
+  });
+  document.querySelectorAll("#orientResults .linkish").forEach(b =>
+    b.addEventListener("click", () => {
+      showTab("search");
+      STREAM = OSTATE.stream; BACWIL = OSTATE.wilaya;
+      $("#streamPick").value = STREAM; $("#wilayaPick").value = BACWIL;
+      renderDetail(byCode(b.dataset.code));
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }));
+}
+
+function showTab(name) {
+  const isSearch = name === "search";
+  $("#panelSearch").hidden = !isSearch;
+  $("#panelOrient").hidden = isSearch;
+  $("#tabSearch").classList.toggle("active", isSearch);
+  $("#tabOrient").classList.toggle("active", !isSearch);
+  $("#tabSearch").setAttribute("aria-selected", String(isSearch));
+  $("#tabOrient").setAttribute("aria-selected", String(!isSearch));
 }
 
 /* trend on the primary min across years: latest vs previous available */

@@ -22,25 +22,73 @@
     </div>
   </header>
 
+  <nav class="tabs" role="tablist">
+    <button id="tabSearch" role="tab" aria-selected="true" aria-controls="panelSearch"
+            class="active" data-tab="search">
+      <span aria-hidden="true">🔍</span> <span data-i18n="tab_search">Rechercher</span>
+    </button>
+    <button id="tabOrient" role="tab" aria-selected="false" aria-controls="panelOrient"
+            data-tab="orient">
+      <span aria-hidden="true">🎯</span> <span data-i18n="tab_orient">M'orienter</span>
+    </button>
+  </nav>
+
   <main>
-    <section class="hero">
-      <h1 data-i18n="hero_title">Trouvez la moyenne minimale de votre filière</h1>
-      <p class="sub" data-i18n="hero_sub">BAC 2023 · 2024 · 2025 — tapez une spécialité en français.</p>
-      <div class="search-wrap">
-        <input id="search" type="search" autocomplete="off" spellcheck="false"
-               data-i18n-ph="search_ph" placeholder="Ex : informatique, droit, médecine…">
-        <ul id="suggest" class="suggest" hidden></ul>
+    <!-- ============ TAB 1: search ============ -->
+    <section id="panelSearch" role="tabpanel" aria-labelledby="tabSearch">
+      <div class="hero">
+        <h1 data-i18n="hero_title">Trouvez la moyenne minimale de votre filière</h1>
+        <p class="sub" data-i18n="hero_sub">BAC 2023 · 2024 · 2025 — tapez une spécialité en français.</p>
+        <div class="search-wrap">
+          <input id="search" type="search" autocomplete="off" spellcheck="false"
+                 data-i18n-ph="search_ph" placeholder="Ex : informatique, droit, médecine…">
+          <ul id="suggest" class="suggest" hidden></ul>
+        </div>
+        <div class="stream-pick">
+          <span class="lbl" data-i18n="your_stream">Votre filière au BAC :</span>
+          <select id="streamPick"><option value="" data-i18n="stream_any">— Toutes —</option></select>
+          <span class="lbl" data-i18n="your_wilaya">Votre wilaya du BAC :</span>
+          <select id="wilayaPick"><option value="" data-i18n="wilaya_any">— Toutes —</option></select>
+        </div>
       </div>
-      <div class="stream-pick">
-        <span class="lbl" data-i18n="your_stream">Votre filière au BAC :</span>
-        <select id="streamPick"><option value="" data-i18n="stream_any">— Toutes —</option></select>
-        <span class="lbl" data-i18n="your_wilaya">Votre wilaya du BAC :</span>
-        <select id="wilayaPick"><option value="" data-i18n="wilaya_any">— Toutes —</option></select>
-      </div>
+
+      <section id="results" class="results" aria-live="polite">
+        <!-- states injected here -->
+      </section>
     </section>
 
-    <section id="results" class="results" aria-live="polite">
-      <!-- states injected here -->
+    <!-- ============ TAB 2: orientation estimate ============ -->
+    <section id="panelOrient" role="tabpanel" aria-labelledby="tabOrient" hidden>
+      <div class="hero">
+        <h1 data-i18n="orient_title">Estimez vos chances</h1>
+        <p class="sub" data-i18n="orient_sub">Renseignez votre BAC pour voir les spécialités accessibles.</p>
+      </div>
+
+      <p class="warn" role="note">
+        <strong data-i18n="warn_title">Estimation approximative.</strong>
+        <span data-i18n="warn_body">Les moyennes minimales ne sont pas des seuils : elles résultent de la demande et des places disponibles de chaque année, et changent donc chaque année. Ce sont des repères des années passées, pas une garantie.</span>
+      </p>
+
+      <form id="orientForm" class="oform" autocomplete="off">
+        <div class="ofield">
+          <label for="oStream" data-i18n="o_stream">Votre filière au BAC</label>
+          <select id="oStream" required></select>
+        </div>
+        <div class="ofield">
+          <label for="oWilaya" data-i18n="o_wilaya">Votre wilaya du BAC</label>
+          <select id="oWilaya" required></select>
+        </div>
+        <div class="ofield">
+          <label for="oMg" data-i18n="o_mg">Moyenne générale du BAC</label>
+          <input id="oMg" type="number" inputmode="decimal" step="0.01" min="0" max="20"
+                 placeholder="12.50" required>
+        </div>
+        <div id="oSubjects" class="osubjects"><!-- marks injected per branch --></div>
+        <p class="ohint" data-i18n="o_hint">Les notes servent à calculer la moyenne pondérée, utilisée par certains domaines.</p>
+        <button type="submit" class="obtn" data-i18n="o_go">Voir les spécialités</button>
+      </form>
+
+      <section id="orientResults" class="results" aria-live="polite"></section>
     </section>
   </main>
 

@@ -86,11 +86,70 @@ SCIENCE_SPLIT = {
     "N": ["math", "techmath", "sciexp"],
 }
 # Base de classement: weighted average (coefficients) vs general BAC average.
-WEIGHTED = {"A", "C", "N"}   # per circulaire p.4 "صيغة احتساب" column
 CALC = {
     "weighted": {"fr": "Moyenne pondérée du BAC", "ar": "المعدل الموزون للبكالوريا"},
     "general":  {"fr": "Moyenne générale du BAC", "ar": "المعدل العام للبكالوريا"},
 }
+
+# Subject marks that can appear in a weighted formula.
+SUBJECTS = {
+    "svt":      {"fr": "Sciences de la Nature et de la Vie", "ar": "العلوم الطبيعية"},
+    "physique": {"fr": "Physique",                    "ar": "الفيزياء"},
+    "math":     {"fr": "Mathématiques",               "ar": "الرياضيات"},
+    "spec":     {"fr": "Matière de spécialité (technique)", "ar": "مادة التخصص"},
+    "langue":   {"fr": "Langue de la filière demandée", "ar": "لغة الشعبة المطلوبة"},
+    "lang3":    {"fr": "Moyenne des 3 langues concernées", "ar": "معدل اللغات الثلاث المعنية"},
+}
+
+# Formule de calcul, per circulaire p.4 "صيغة احتساب".
+# Every formula is Σ(weight × value) / divisor, so (MG*2 + (Phys+Math)/2)/3
+# becomes {mg:2, physique:.5, math:.5} / 3.
+# The formula depends on the DOMAINE *and* the candidate's BAC branch: in SNV a
+# Sci.Exp candidate is ranked on a weighted average while a Tech.Math one is
+# ranked on the general average.
+_GEN = {"terms": {"mg": 1}, "divisor": 1}
+_PHYS_MATH = {"terms": {"mg": 2, "physique": .5, "math": .5}, "divisor": 3}
+_SPEC_MATH = {"terms": {"mg": 2, "spec": .5, "math": .5}, "divisor": 3}
+_SVT = {"terms": {"mg": 2, "svt": 1}, "divisor": 3}
+_MATH = {"terms": {"mg": 2, "math": 1}, "divisor": 3}
+_LANGUE = {"terms": {"mg": 2, "langue": 1}, "divisor": 3}
+
+def _rule(branches, spec):
+    return dict(branches=branches, **spec)
+
+# key: domaine letter, or "H"+sub-code for languages. Ordered; first match wins.
+CALC_RULES = {
+    # SNV / STU / Santé / Médecine / Vétérinaire
+    "D": [_rule(["sciexp", "math"], _SVT), _rule(["techmath"], _GEN)],
+    "E": [_rule(["sciexp", "math"], _SVT), _rule(["techmath"], _GEN)],
+    "P": [_rule(["sciexp", "math"], _SVT), _rule(["techmath"], _GEN)],
+    # Sciences de la Matière / Sciences & Technologies (+ ENS).
+    # Tech.Math candidates are ranked on their specialisation mark (the
+    # "4 مسارات تقني رياضي" row) instead of Physique.
+    "A": [_rule(["techmath"], _SPEC_MATH), _rule(ALL_STREAMS, _PHYS_MATH)],
+    "B": [_rule(ALL_STREAMS, _PHYS_MATH)],
+    "N": [_rule(ALL_STREAMS, _PHYS_MATH)],
+    "C": [_rule(ALL_STREAMS, _MATH)],
+    # Général for everything else.
+    "F": [_rule(ALL_STREAMS, _GEN)], "G": [_rule(ALL_STREAMS, _GEN)],
+    "I": [_rule(ALL_STREAMS, _GEN)], "J": [_rule(ALL_STREAMS, _GEN)],
+    "K": [_rule(ALL_STREAMS, _GEN)], "L": [_rule(ALL_STREAMS, _GEN)],
+    "M": [_rule(ALL_STREAMS, _GEN)],
+    "W": [_rule(ALL_STREAMS, _GEN)], "X": [_rule(ALL_STREAMS, _GEN)],
+    # Languages: FR/EN weighted for every branch; ES/DE weighted only for the
+    # Langues branch; IT and RU/ZH/TR are général throughout.
+    "H01": [_rule(ALL_STREAMS, _LANGUE)], "H06": [_rule(ALL_STREAMS, _LANGUE)],
+    "H02": [_rule(["langues"], _LANGUE), _rule(ALL_STREAMS, _GEN)],
+    "H04": [_rule(["langues"], _LANGUE), _rule(ALL_STREAMS, _GEN)],
+    "H07": [_rule(ALL_STREAMS, _GEN)],
+    "H05": [_rule(ALL_STREAMS, _GEN)], "H09": [_rule(ALL_STREAMS, _GEN)],
+    "H03": [_rule(ALL_STREAMS, _GEN)], "H08": [_rule(ALL_STREAMS, _GEN)],
+}
+H_CALC_DEFAULT = [_rule(ALL_STREAMS, _GEN)]
+
+def calc_key(code_fil):
+    """Key into CALC_RULES for a code_fil."""
+    return ("H" + code_fil[1:3]) if code_fil[0] == "H" else code_fil[0]
 # H (languages) split by H## sub-code.
 H_LANG_A = [["langues"], ["lettres"], ["sciexp", "gestion", "arts"]]        # FR/EN/ES/DE
 H_LANG_IT = [["langues"], ["lettres"], ["sciexp", "math", "techmath", "gestion", "arts"]]
@@ -426,7 +485,13 @@ def build():
         scope_votes = collections.Counter(code2scope[c] for c in codes if code2scope.get(c))
         scope = scope_votes.most_common(1)[0][0] if scope_votes else None
         filiere_ar = fr2ar.get(fold(filiere_fr))
-        calc = ("weighted" if letter in WEIGHTED else "general") if dom else None
+        ckey = calc_key(rep)
+        rules = CALC_RULES.get(ckey) or (H_CALC_DEFAULT if letter == "H" else None)
+        # "weighted" if ANY branch is ranked on a weighted average for this
+        # domaine; the per-branch truth lives in meta.calc_rules[calc_key].
+        calc = None
+        if rules:
+            calc = "weighted" if any(r["terms"] != {"mg": 1} for r in rules) else "general"
 
         specialities.append({
             "code_fil": rep,
@@ -439,6 +504,7 @@ def build():
             "nature": seg,
             "scope": scope,
             "calc": calc,
+            "calc_key": ckey if rules else None,
             "priorities": priorities,
             "active_mins": active_mins,
             "search": fold(filiere_fr),
@@ -458,6 +524,8 @@ def build():
             "scopes": SCOPES,
             "origin_wilayas": origins,
             "calc": CALC,
+            "subjects": SUBJECTS,
+            "calc_rules": CALC_RULES,
             "row_counts": counts,
             "speciality_count": len(specialities),
             "specialities_with_arabic": ar_named,
@@ -515,6 +583,25 @@ def main():
     assert cinf["priorities"] == {"min1": ["math"], "min2": ["sciexp"], "min3": ["techmath"]}, cinf["priorities"]
     assert cinf["calc"] == "weighted"
     assert by_code["G02LAL01"]["calc"] == "general"
+
+    # Formule de calcul is per (domaine, branch) — circulaire p.4.
+    def rule_for(code, branch):
+        s = by_code[code]
+        for r in data["meta"]["calc_rules"][s["calc_key"]]:
+            if branch in r["branches"]:
+                return r
+        raise AssertionError(f"no calc rule for {code}/{branch}")
+    # Médecine: Sci.Exp is ranked on (MG*2 + SVT)/3, Tech.Math on the plain average.
+    assert rule_for("P01MAL01", "sciexp") == {
+        "branches": ["sciexp", "math"], "terms": {"mg": 2, "svt": 1}, "divisor": 3}
+    assert rule_for("P01MAL01", "techmath")["terms"] == {"mg": 1}
+    # Sciences & Technologies: Tech.Math uses its specialisation mark, not Physique.
+    assert rule_for("A00LAL01", "techmath")["terms"] == {"mg": 2, "spec": .5, "math": .5}
+    assert rule_for("A00LAL01", "math")["terms"] == {"mg": 2, "physique": .5, "math": .5}
+    # Maths & Informatique: (MG*2 + Maths)/3 for everyone.
+    assert rule_for("C01LAL01", "sciexp")["terms"] == {"mg": 2, "math": 1}
+    # Droit is général for everyone.
+    assert rule_for("G02LAL01", "lettres")["terms"] == {"mg": 1}
     # merge worked: the 3 academic-Droit variants collapsed into one speciality
     droit_lal = by_code["G02LAL01"]
     assert set(droit_lal["codes"]) >= {"G02LAL01", "G02LAL02", "G02LAL03"}, droit_lal["codes"]
